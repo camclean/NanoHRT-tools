@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from __future__ import print_function
 
 import os
@@ -39,7 +39,7 @@ golden_json = {
     2018: 'Cert_314472-325175_13TeV_Legacy2018_Collisions18_JSON.txt',
     20220: 'Cert_Collisions2022_355100_362760_Golden.json',
     20221: 'Cert_Collisions2022_355100_362760_Golden.json',
-
+    2024: 'Cert_Collisions2024_378981_386951_Golden.json',
 }
 
 
@@ -65,6 +65,8 @@ def _process(args):
 
     if year < 2020:
         args.weight_file = 'samples/xsec_2017.conf'
+    elif year == 2024:
+        args.weight_file = 'samples/xsec_2024.conf'
     else:
         args.weight_file = 'samples/xsec_2022.conf'
 
@@ -88,7 +90,7 @@ def _process(args):
     args.imports = [('PhysicsTools.NanoHRTTools.producers.HeavyFlavSFTreeProducer', 'heavyFlavSFTreeFromConfig')]
     if not args.run_data:
         args.imports.extend([('PhysicsTools.NanoAODTools.postprocessing.modules.common.puWeightProducer',
-                              'puWeight_UL2016' if year == 2015 else 'puWeight_UL%d' % year if year <2020 else 'puWeight_%d' % year),
+                              'puWeight_UL2016' if year == 2015 else 'puWeight_UL%d' % year if year < 2020 else 'puWeight_%d' % year),
                              ('PhysicsTools.NanoHRTTools.producers.topPtWeightProducer', 'topPtWeight')])
 
     # data, or just nominal MC
@@ -183,7 +185,7 @@ def main():
     parser.add_argument('--year',
                         type=str,
                         required=True,
-                        help='Year: 2015 (2016 preVFP), 2016 (2016 postVFP), 2017, 2018,20220,20221 or comma separated list e.g., `2016,2017,2018`'
+                        help='Year: 2015 (2016 preVFP), 2016 (2016 postVFP), 2017, 2018,20220,20221,2024 or comma separated list e.g., `2016,2017,2018`'
                         )
 
     parser.add_argument('--sample-dir',
