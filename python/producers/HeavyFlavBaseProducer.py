@@ -16,7 +16,7 @@ import logging
 logger = logging.getLogger('nano')
 configLogger('nano', loglevel=logging.INFO)
 
-lumi_dict = {2015: 19.52, 2016: 16.81, 2017: 41.48, 2018: 59.83,20220: 7.98, 20221: 26.67}
+lumi_dict = {2015: 19.52, 2016: 16.81, 2017: 41.48, 2018: 59.83,20220: 7.98, 20221: 26.67, 2024: 108.96}
 
 
 class _NullObject:
@@ -120,9 +120,15 @@ class HeavyFlavBaseProducer(Module, object):
                     version=ver, cache_suffix='mass') for ver in self._opts['mass_regression_versions']]
 
         # https://twiki.cern.ch/twiki/bin/viewauth/CMS/BtagRecommendation
-        self.DeepJet_WP_L = {2015: 0.0508, 2016: 0.0480, 2017: 0.0532, 2018: 0.0490,20220: 0.0583,20221: 0.0614}[self.year]
-        self.DeepJet_WP_M = {2015: 0.2598, 2016: 0.2489, 2017: 0.3040, 2018: 0.2783,20220: 0.3086,20221: 0.3196}[self.year]
-        self.DeepJet_WP_T = {2015: 0.6502, 2016: 0.6377, 2017: 0.7476, 2018: 0.7100,20220: 0.7183,20221: 0.7300}[self.year]
+        if self.year != 2024:
+            self.DeepJet_WP_L = {2015: 0.0508, 2016: 0.0480, 2017: 0.0532, 2018: 0.0490,20220: 0.0583,20221: 0.0614}[self.year]
+            self.DeepJet_WP_M = {2015: 0.2598, 2016: 0.2489, 2017: 0.3040, 2018: 0.2783,20220: 0.3086,20221: 0.3196}[self.year]
+            self.DeepJet_WP_T = {2015: 0.6502, 2016: 0.6377, 2017: 0.7476, 2018: 0.7100,20220: 0.7183,20221: 0.7300}[self.year]
+
+        if self.year == 2024:
+            self.UParT_WP_L = {2024: 0.0246}[self.year]
+            self.UParT_WP_M = {2024: 0.1272}[self.year]
+            self.UParT_WP_T = {2024: 0.4648}[self.year]
 
     def beginJob(self):
         if self._needsJMECorr:
@@ -210,6 +216,14 @@ class HeavyFlavBaseProducer(Module, object):
             self.out.branch(prefix + "DeepAK8MD_ZHccvsQCD", "F")
             self.out.branch(prefix + "DeepAK8MD_bbVsLight", "F")
             self.out.branch(prefix + "DeepAK8MD_bbVsTop", "F")
+
+            self.out.branch(prefix + "ParticleNet_TvsQCD_v15", "F")
+            self.out.branch(prefix + "ParticleNet_WvsQCD_v15", "F")
+            self.out.branch(prefix + "ParticleNetMD_WvsQCD_v15", "F")
+            self.out.branch(prefix + "GlobalParT3_WvsQCD", "F")
+            self.out.branch(prefix + "GlobalParT3_withMassTopvsQCD", "F")
+            self.out.branch(prefix + "GlobalParT3_withMassWvsQCD", "F")
+            self.out.branch(prefix + "sdmass_v15", "F")
 
             self.out.branch(prefix + "ParticleNet_TvsQCD", "F")
             self.out.branch(prefix + "ParticleNet_WvsQCD", "F")
@@ -390,19 +404,33 @@ class HeavyFlavBaseProducer(Module, object):
         if self.isMC and self._jmeSysts['jmr']:
             raise NotImplementedError
 
+        for j in event._allJets:
+            if self.year == 2024:
+                j.jetId = 0
+                if ((j.neHEF < 0.90) and (j.neEmEF < 0.90) and (j.nConstituents > 1) and (j.chHEF > 0) and (j.chMultiplicity > 0)):
+                    j.jetId = 2
+
         # link fatjet to subjets and recompute softdrop mass
         for idx, fj in enumerate(event._allFatJets):
+            if self.year == 2024:
+                fj.jetId = 0
+                if ((fj.neHEF < 0.90) and (fj.neEmEF < 0.90) and (fj.nConstituents > 1) and (fj.chHEF > 0) and (fj.chMultiplicity > 0)):
+                    fj.jetId = 2
             fj.idx = idx
             fj.is_qualified = True
             fj.subjets = get_subjets(fj, event.subjets, ('subJetIdx1', 'subJetIdx2'))
-            fj.msoftdrop = sumP4(*fj.subjets).M()
+            fj.softdrop = sumP4(*fj.subjets).M()
         event._allFatJets = sorted(event._allFatJets, key=lambda x: x.pt, reverse=True)  # sort by pt
 
         # select lepton-cleaned jets
         event.fatjets = [fj for fj in event._allFatJets if fj.pt > 200 and abs(fj.eta) < 2.4 and (
             fj.jetId & 2) and closest(fj, event.looseLeptons)[1] >= self._jetConeSize]
-        event.ak4jets = [j for j in event._allJets if j.pt > 25 and abs(j.eta) < 2.4 and (
-            j.jetId & 4) and closest(j, event.looseLeptons)[1] >= 0.4]
+        if self.year == 2024:
+            event.ak4jets = [j for j in event._allJets if j.pt > 25 and abs(j.eta) < 2.4 and (
+                j.jetId & 2) and closest(j, event.looseLeptons)[1] >= 0.4]
+        else:
+            event.ak4jets = [j for j in event._allJets if j.pt > 25 and abs(j.eta) < 2.4 and (
+                j.jetId & 4) and closest(j, event.looseLeptons)[1] >= 0.4]
         event.ht = sum([j.pt for j in event.ak4jets])
 
     def selectSV(self, event):
@@ -598,7 +626,7 @@ class HeavyFlavBaseProducer(Module, object):
             event.Flag_BadPFMuonDzFilter and
             event.Flag_eeBadScFilter
         )
-        if self.year in (2017, 2018, 20220, 20221):
+        if self.year in (2017, 2018, 20220, 20221, 2024):
             met_filters = met_filters and event.Flag_ecalBadCalibFilter
         self.out.fillBranch("passmetfilters", met_filters)
 
@@ -623,6 +651,8 @@ class HeavyFlavBaseProducer(Module, object):
             vetomaps_file = ROOT.TFile.Open("/afs/cern.ch/user/l/lpaizano/JME_Trees/CMSSW_11_1_0_pre5_PY3/src/PhysicsTools/NanoHRTTools/data/jme/jet_veto_maps/Summer22_23Sep2023/Summer22_23Sep2023_RunCD_v1.root","READ")
         elif self.year == 20221:
             vetomaps_file = ROOT.TFile.Open("/afs/cern.ch/user/l/lpaizano/JME_Trees/CMSSW_11_1_0_pre5_PY3/src/PhysicsTools/NanoHRTTools/data/jme/jet_veto_maps/Summer22EE_23Sep2023/Summer22EE_23Sep2023_RunEFG_v1.root","READ")
+        elif self.year == 2024:
+            vetomaps_file = ROOT.TFile.Open("/afs/cern.ch/user/l/lpaizano/JME_Trees/CMSSW_11_1_0_pre5_PY3/src/PhysicsTools/NanoHRTTools/data/jme/jet_veto_maps/Summer24Prompt24_V1/Summer24Prompt24_RunBCDEFGHI.root","READ")
         vetomaps_hist = vetomaps_file.Get("jetvetomap") 
 
         vetomap_event = 0
@@ -658,7 +688,7 @@ class HeavyFlavBaseProducer(Module, object):
             self.out.fillBranch(prefix + "eta", fj.eta)
             self.out.fillBranch(prefix + "phi", fj.phi)
             self.out.fillBranch(prefix + "rawmass", fj.mass)
-            self.out.fillBranch(prefix + "sdmass", fj.msoftdrop)
+            self.out.fillBranch(prefix + "sdmass", fj.softdrop)
             self.out.fillBranch(prefix + "regressed_mass", fj.regressed_mass)
             self.out.fillBranch(prefix + "tau21", fj.tau2 / fj.tau1 if fj.tau1 > 0 else 99)
             self.out.fillBranch(prefix + "tau32", fj.tau3 / fj.tau2 if fj.tau2 > 0 else 99)
@@ -769,7 +799,17 @@ class HeavyFlavBaseProducer(Module, object):
                 w_md = 1
                 
             self.out.fillBranch(prefix + "ParticleNetMD_WvsQCD", w_md)
-            
+
+            #V15 Test
+            if self.year == 2024:
+                self.out.fillBranch(prefix + "ParticleNet_TvsQCD_v15", fj.particleNetWithMass_TvsQCD)
+                self.out.fillBranch(prefix + "ParticleNet_WvsQCD_v15", fj.particleNetWithMass_WvsQCD)
+                self.out.fillBranch(prefix + "ParticleNetMD_WvsQCD_v15", fj.particleNet_WVsQCD)
+                self.out.fillBranch(prefix + "GlobalParT3_WvsQCD", fj.globalParT3_WvsQCD)
+                self.out.fillBranch(prefix + "GlobalParT3_withMassTopvsQCD", fj.globalParT3_withMassTopvsQCD)
+                self.out.fillBranch(prefix + "GlobalParT3_withMassWvsQCD", fj.globalParT3_withMassWvsQCD)
+                self.out.fillBranch(prefix + "sdmass_v15", fj.msoftdrop)
+
             # ParticleNet-MD
             self.out.fillBranch(prefix + "ParticleNetMD_Xbb", fj.pn_Xbb)
             self.out.fillBranch(prefix + "ParticleNetMD_Xcc", fj.pn_Xcc)
@@ -796,8 +836,9 @@ class HeavyFlavBaseProducer(Module, object):
                 except IndexError:
                     sj2 = None
 
-                self.out.fillBranch(prefix + "nbhadrons", fj.nBHadrons)
-                self.out.fillBranch(prefix + "nchadrons", fj.nCHadrons)
+                if self.year == 2024:
+                    self.out.fillBranch(prefix + "nbhadrons", fj.nBHadrons)
+                    self.out.fillBranch(prefix + "nchadrons", fj.nCHadrons)
                 self.out.fillBranch(prefix + "sj1_nbhadrons", sj1.nBHadrons if sj1 else -1)
                 self.out.fillBranch(prefix + "sj1_nchadrons", sj1.nCHadrons if sj1 else -1)
                 self.out.fillBranch(prefix + "sj2_nbhadrons", sj2.nBHadrons if sj2 else -1)

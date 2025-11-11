@@ -40,6 +40,10 @@ class JetCorrector(object):
         if applyResidual:
             self.jecLevels += ['L2L3Residual']
         self.vPar = ROOT.vector(ROOT.JetCorrectorParameters)()
+
+        if "24" in globalTag:
+            jetType = "AK4PFPuppi"
+
         logger.info('Init JetCorrector: %s, %s, %s', globalTag, jetType, str(self.jecLevels))
         for level in self.jecLevels:
             self.vPar.push_back(ROOT.JetCorrectorParameters(os.path.join(
@@ -179,6 +183,24 @@ class JetMETCorrector(object):
                 (360332, 'Summer22EE_22Sep2023_RunF_V2_DATA'),
                 (362350, 'Summer22EE_22Sep2023_RunG_V2_DATA'),
             )
+        elif self.year == 2024:
+            self.globalTag = 'Summer24Prompt24_V1_MC'
+            self.jerTag = 'Summer23BPixPrompt23_RunD_JRV1_MC'
+            self.dataTags = (
+                # set the name of the tarball with a dummy run number
+                (0, 'Summer24Prompt24_V1_DATA'),
+                # (start run number (inclusive), 'tag name')
+                (379416, 'Summer24Prompt24_RunCnib1_V1_DATA'),
+                (380306, 'Summer24Prompt24_RunDnib1_V1_DATA'),
+                (380963, 'Summer24Prompt24_RunEnib1_V1_DATA'),
+                (382229, 'Summer24Prompt24_RunFnib1_V1_DATA'),
+                (382298, 'Summer24Prompt24_RunFnib2_V1_DATA'),
+                (383247, 'Summer24Prompt24_RunFnib3_V1_DATA'),
+                (383811, 'Summer24Prompt24_RunGnib1_V1_DATA'),
+                (384933, 'Summer24Prompt24_RunGnib1_V1_DATA'),
+                (385836, 'Summer24Prompt24_RunHnib1_V1_DATA'),
+                (386478, 'Summer24Prompt24_RunInib1_V1_DATA'),
+            )
         else:
             raise RuntimeError('Invalid year: %s' % (str(self.year)))
 
@@ -191,6 +213,7 @@ class JetMETCorrector(object):
                     ROOT.gSystem.Load(library)
 
             self.jesInputFilePath = tempfile.mkdtemp()
+
             # extract the MC and unc files
             find_and_extract_tarball(self.globalTag, self.jesInputFilePath,
                                      copy_txt_with_prefix=self.jes_uncertainty_file_prefix)

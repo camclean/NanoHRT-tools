@@ -15,6 +15,7 @@ class MuonSampleProducer(HeavyFlavBaseProducer):
 
         # trigger variables
         self.out.branch("passMuTrig", "O")
+        self.out.branch("passMu50Trig", "O")
 
         # event variables
         self.out.branch("muon_pt", "F")
@@ -46,8 +47,12 @@ class MuonSampleProducer(HeavyFlavBaseProducer):
             return False
 
         # at least one b-jet, in the same hemisphere of the muon
-        event.bjets = [j for j in event.ak4jets if j.btagDeepFlavB > self.DeepJet_WP_M and
-                       abs(deltaPhi(j, event.mu)) < 2]
+        if self.year == 2024:
+            event.bjets = [j for j in event.ak4jets if j.btagUParTAK4B > self.UParT_WP_M and
+                           abs(deltaPhi(j, event.mu)) < 2]
+        else:
+            event.bjets = [j for j in event.ak4jets if j.btagDeepFlavB > self.DeepJet_WP_M and
+                           abs(deltaPhi(j, event.mu)) < 2]
         if len(event.bjets) == 0:
             return False
 
@@ -67,6 +72,7 @@ class MuonSampleProducer(HeavyFlavBaseProducer):
 
         # fill
         self.out.fillBranch("passMuTrig", passTrigger(event, ['HLT_Mu50', 'HLT_TkMu50']))
+        self.out.fillBranch("passMu50Trig", event.HLT_Mu50)
         self.out.fillBranch("muon_pt", event.mu.pt)
         self.out.fillBranch("muon_eta", event.mu.eta)
         self.out.fillBranch("muon_miniIso", event.mu.miniPFRelIso_all)
@@ -81,3 +87,4 @@ def MuonTree_2017(): return MuonSampleProducer(year=2017)
 def MuonTree_2018(): return MuonSampleProducer(year=2018)
 def MuonTree_20220(): return MuonSampleProducer(year=20220)
 def MuonTree_20221(): return MuonSampleProducer(year=20221)
+def MuonTree_2024(): return MuonSampleProducer(year=2024)
