@@ -2,6 +2,8 @@ import os
 import itertools
 import numpy as np
 import ROOT
+import json
+
 ROOT.PyConfig.IgnoreCommandLineOptions = True
 
 from PhysicsTools.NanoAODTools.postprocessing.framework.datamodel import Collection, Object
@@ -173,6 +175,12 @@ class HeavyFlavBaseProducer(Module, object):
         self.out.branch("ht", "F")
         self.out.branch("met", "F")
         self.out.branch("metphi", "F")
+
+        self.out.branch("puweight_nom", "F")
+        self.out.branch("puweight_up", "F")
+        self.out.branch("puweight_down", "F")
+        self.out.branch("Pileup_nTrueInt", "I")
+
         self.out.branch("vetomap", "F")
         # Large-R jets
         for idx in ([1, 2] if self._channel == 'qcd' else [1]):
@@ -645,14 +653,37 @@ class HeavyFlavBaseProducer(Module, object):
         self.out.fillBranch("met", event.met.pt)
         self.out.fillBranch("metphi", event.met.phi)
         
+        with open("/afs/cern.ch/user/l/lpaizano/NanoHRT/CMSSW_11_1_0_pre5_PY3/src/PhysicsTools/NanoHRTTools/data/JSON/puweights_BCDEFGHI.json") as f:
+            j = json.load(f)
+
+            content = j["corrections"][0]["data"]["content"]
+            nTrueInt = int(round(event.Pileup_nTrueInt))
+
+            for item in content:
+                if item["key"] == "nominal":
+                    weights_nom = item["value"]["content"]
+                elif item["key"] == "up":
+                    weights_up = item["value"]["content"]
+                elif item["key"] == "down":
+                    weights_down = item["value"]["content"]
+
+            weight_nom = weights_nom[nTrueInt]
+            weight_up = weights_up[nTrueInt]
+            weight_down = weights_down[nTrueInt]
+
+        self.out.fillBranch("puweight_nom",weight_nom)
+        self.out.fillBranch("puweight_up",weight_up)
+        self.out.fillBranch("puweight_down",weight_down)
+        self.out.fillBranch("Pileup_nTrueInt",nTrueInt)
+
         event.vetomap_ak4jets = [j for j in event._allJets if j.pt > 15 and (j.chEmEF + j.neEmEF) < 0.9  and (j.jetId & 2) and closest(j, event.looseMuons)[1] >= 0.2]
         #Jets Veto Maps
         if self.year == 20220:
-            vetomaps_file = ROOT.TFile.Open("/afs/cern.ch/user/l/lpaizano/JME_Trees/CMSSW_11_1_0_pre5_PY3/src/PhysicsTools/NanoHRTTools/data/jme/jet_veto_maps/Summer22_23Sep2023/Summer22_23Sep2023_RunCD_v1.root","READ")
+            vetomaps_file = ROOT.TFile.Open("/afs/cern.ch/user/l/lpaizano/NanoHRT/CMSSW_11_1_0_pre5_PY3/src/PhysicsTools/NanoHRTTools/data/jme/jet_veto_maps/Summer22_23Sep2023/Summer22_23Sep2023_RunCD_v1.root","READ")
         elif self.year == 20221:
-            vetomaps_file = ROOT.TFile.Open("/afs/cern.ch/user/l/lpaizano/JME_Trees/CMSSW_11_1_0_pre5_PY3/src/PhysicsTools/NanoHRTTools/data/jme/jet_veto_maps/Summer22EE_23Sep2023/Summer22EE_23Sep2023_RunEFG_v1.root","READ")
+            vetomaps_file = ROOT.TFile.Open("/afs/cern.ch/user/l/lpaizano/NanoHRT/CMSSW_11_1_0_pre5_PY3/src/PhysicsTools/NanoHRTTools/data/jme/jet_veto_maps/Summer22EE_23Sep2023/Summer22EE_23Sep2023_RunEFG_v1.root","READ")
         elif self.year == 2024:
-            vetomaps_file = ROOT.TFile.Open("/afs/cern.ch/user/l/lpaizano/JME_Trees/CMSSW_11_1_0_pre5_PY3/src/PhysicsTools/NanoHRTTools/data/jme/jet_veto_maps/Summer24Prompt24_V1/Summer24Prompt24_RunBCDEFGHI.root","READ")
+            vetomaps_file = ROOT.TFile.Open("/afs/cern.ch/user/l/lpaizano/NanoHRT/CMSSW_11_1_0_pre5_PY3/src/PhysicsTools/NanoHRTTools/data/jme/jet_veto_maps/Summer24Prompt24_V1/Summer24Prompt24_RunBCDEFGHI.root","READ")
         vetomaps_hist = vetomaps_file.Get("jetvetomap") 
 
         vetomap_event = 0
